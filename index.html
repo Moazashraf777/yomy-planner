@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>يومي | منظم الطالب</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-icon">MO</span><div><strong>يومي</strong><small>نظّم يومك، وركّز في أهدافك</small></div></div>
+  <button class="notify-btn" id="enableNotifications">
+  🔔 تشغيل الإشعارات
+  </button>
+</header>
+<main class="wrap">
+  <section class="welcome">
+    <div><p class="eyebrow">مساحتك الشخصية</p><h1>أهلاً بيك 👋</h1><p>كل محاضراتك ومواعيدك ومصاريفك في مكان واحد.</p></div>
+    <div class="date-chip">📅 {{ today }}</div>
+  </section>
+  <section class="stats">
+    <article class="stat"><span class="stat-icon purple">▦</span><div><span>محاضرات مسجلة</span><strong>{{ lectures|length }}</strong></div></article>
+    <article class="stat"><span class="stat-icon orange">↗</span><div><span>مصروفات الشهر</span><strong>{{ "%.2f"|format(total) }} ج.م</strong></div></article>
+    <article class="stat"><span class="stat-icon green">＋</span><div><span>دخل الشهر</span><strong>{{ "%.2f"|format(income) }} ج.م</strong></div></article>
+    <article class="stat"><span class="stat-icon blue">◷</span><div><span>مواعيد قادمة</span><strong>{{ events|length }}</strong></div></article>
+  </section>
+
+  <section class="panel" id="lectures">
+    <div class="section-head"><div><span class="section-kicker">الدراسة</span><h2>جدول المحاضرات</h2></div><span class="pill">{{ lectures|length }} محاضرة</span></div>
+    <form class="form-grid" method="post" action="/lecture/add">
+      <label>اسم المادة<input name="subject" placeholder="مثلاً: برمجة 1" required></label>
+      <label>اسم الدكتور<input name="lecturer" placeholder="اختياري"></label>
+      <label>اليوم<select name="day" required>{% for d in ['السبت','الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'] %}<option>{{ d }}</option>{% endfor %}</select></label>
+      <label>الساعة<input name="start_time" type="time" required></label>
+      <label>القاعة<input name="location" placeholder="مثلاً: Lab 2"></label>
+      <label>التنبيه قبلها<select name="remind"><option value="5">5 دقائق</option><option value="15" selected>15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">ساعة</option></select></label>
+      <button class="primary wide">＋ إضافة محاضرة</button>
+    </form>
+    {% if lectures %}
+    <div class="table-wrap"><table><thead><tr><th>المادة</th><th>الدكتور</th><th>اليوم</th><th>الوقت</th><th>القاعة</th><th></th></tr></thead><tbody>
+    {% for l in lectures %}<tr><td><strong>{{ l.subject }}</strong></td><td>{{ l.lecturer or '—' }}</td><td>{{ l.day }}</td><td>{{ l.start_time }}</td><td>{{ l.location or '—' }}</td><td><form method="post" action="/lecture/delete/{{ l.id }}"><button class="icon-btn danger" title="حذف">×</button></form></td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<div class="empty">لسه مفيش محاضرات. أضف أول محاضرة من النموذج.</div>{% endif %}
+  </section>
+
+  <section class="two-col">
+    <div class="panel" id="expenses">
+      <div class="section-head"><div><span class="section-kicker">إدارة الفلوس</span><h2>المصاريف الشخصية</h2></div><span class="pill">ج.م</span></div>
+      <div class="money-summary"><div><span>المصروف</span><strong>{{ "%.2f"|format(total) }} ج.م</strong></div><div><span>المتبقي من الميزانية</span><strong class="{% if budget and budget-total < 0 %}red{% endif %}">{{ "%.2f"|format(budget-total) if budget else "—" }}{% if budget %} ج.م{% endif %}</strong></div></div>
+      <form class="form-grid compact" method="post" action="/expense/add">
+        <label>النوع<select name="kind"><option>مصروف</option><option>دخل</option></select></label>
+        <label>المبلغ (ج.م)<input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></label>
+        <label>التصنيف<select name="category">{% for c in ['أكل','مواصلات','دراسة','اشتراكات','خروجات','فواتير','دخل','أخرى'] %}<option>{{ c }}</option>{% endfor %}</select></label>
+        <label>التاريخ<input name="spent_on" type="date" value="{{ today }}" required></label>
+        <label class="full">ملاحظة<input name="note" placeholder="اختياري"></label>
+        <button class="primary wide">＋ تسجيل العملية</button>
+      </form>
+      <form class="budget-form" method="post" action="/budget"><label>الميزانية الشهرية (ج.م)<input name="budget" type="number" min="0" step="0.01" value="{{ budget }}" required></label><button class="secondary">حفظ الميزانية</button></form>
+      <h3 class="subheading">آخر العمليات</h3>
+      {% if expenses %}<div class="list">{% for e in expenses %}<div class="list-row"><div class="list-symbol {% if e.kind=='دخل' %}income{% else %}expense{% endif %}">{% if e.kind=='دخل' %}＋{% else %}−{% endif %}</div><div class="list-main"><strong>{{ e.category }}</strong><small>{{ e.spent_on }}{% if e.note %} · {{ e.note }}{% endif %}</small></div><strong class="{% if e.kind=='دخل' %}green-text{% endif %}">{{ '+' if e.kind=='دخل' else '-' }}{{ "%.2f"|format(e.amount) }}</strong><form method="post" action="/expense/delete/{{ e.id }}"><button class="icon-btn danger">×</button></form></div>{% endfor %}</div>{% else %}<div class="empty">سجّل أول مصروف أو دخل ليظهر هنا.</div>{% endif %}
+    </div>
+    <div class="panel" id="events">
+      <div class="section-head"><div><span class="section-kicker">وقتك مهم</span><h2>المواعيد الشخصية</h2></div><span class="pill">{{ events|length }} قادم</span></div>
+      <form class="form-grid compact" method="post" action="/event/add">
+        <label class="full">اسم الموعد<input name="title" placeholder="مثلاً: امتحان الماث" required></label>
+        <label class="full">التاريخ والوقت<input name="event_at" type="datetime-local" required></label>
+        <label>نوع الموعد<select name="category">{% for c in ['شخصي','امتحان','مذاكرة','مشوار','شغل','صحة','أخرى'] %}<option>{{ c }}</option>{% endfor %}</select></label>
+        <label>التنبيه قبل الموعد<select name="remind"><option value="5">5 دقائق</option><option value="15" selected>15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">ساعة</option><option value="1440">يوم</option></select></label>
+        <label class="full">ملاحظات<input name="note" placeholder="تفاصيل إضافية (اختياري)"></label>
+        <button class="primary wide">＋ إضافة موعد</button>
+      </form>
+      <h3 class="subheading">المواعيد القادمة</h3>
+      {% if events %}<div class="list">{% for e in events %}<div class="event-row"><div class="event-dot"></div><div class="list-main"><strong>{{ e.title }}</strong><small>{{ e.event_at.replace('T',' ') }} · {{ e.category }}</small>{% if e.note %}<small>{{ e.note }}</small>{% endif %}</div><div class="actions"><form method="post" action="/event/done/{{ e.id }}"><button class="icon-btn success" title="تم">✓</button></form><form method="post" action="/event/delete/{{ e.id }}"><button class="icon-btn danger" title="حذف">×</button></form></div></div>{% endfor %}</div>{% else %}<div class="empty">مفيش مواعيد قادمة. أضف موعدك الجاي.</div>{% endif %}
+    </div>
+  </section>
+  <footer>يومي · بياناتك محفوظة محليًا على جهازك في قاعدة بيانات SQLite.</footer>
+</main>
+
+
+<script>
+const btn = document.getElementById('enableNotifications');
+
+let remindersEnabled =
+  localStorage.getItem('remindersEnabled') === 'true';
+
+// Keep notified reminders between page refreshes, so each reminder appears once.
+const notified = new Set(
+  JSON.parse(localStorage.getItem('notifiedReminders') || '[]')
+);
+
+function saveNotified() {
+  localStorage.setItem('notifiedReminders', JSON.stringify([...notified]));
+}
+
+function updateButton() {
+  if (remindersEnabled) {
+    btn.textContent = '🔕 إيقاف الإشعارات';
+    btn.classList.add('enabled');
+  } else {
+    btn.textContent = '🔔 تشغيل الإشعارات';
+    btn.classList.remove('enabled');
+  }
+}
+
+async function loadReminders() {
+  if (!remindersEnabled) return;
+
+  if (!('Notification' in window)) {
+    alert('المتصفح لا يدعم الإشعارات.');
+    return;
+  }
+
+  if (Notification.permission !== 'granted') {
+    const permission = await Notification.requestPermission();
+
+    if (permission !== 'granted') {
+      remindersEnabled = false;
+      localStorage.setItem('remindersEnabled', 'false');
+      updateButton();
+      alert('اسمح بالإشعارات من إعدادات المتصفح أولًا.');
+      return;
+    }
+  }
+
+  new Notification('يومي', {
+    body: 'تم تشغيل الإشعارات بنجاح!'
+  });
+
+  checkReminders();
+}
+
+btn.addEventListener('click', async () => {
+  if (remindersEnabled) {
+    remindersEnabled = false;
+    localStorage.setItem('remindersEnabled', 'false');
+    updateButton();
+    return;
+  }
+
+  remindersEnabled = true;
+  localStorage.setItem('remindersEnabled', 'true');
+  updateButton();
+
+  await loadReminders();
+});
+
+async function checkReminders() {
+  if (!remindersEnabled ||
+      !('Notification' in window) ||
+      Notification.permission !== 'granted') return;
+
+  try {
+    const response = await fetch('/api/reminders', {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) return;
+
+    const reminders = await response.json();
+    const now = Date.now();
+
+    reminders.forEach(item => {
+      const eventTime = new Date(item.event_at).getTime();
+      if (Number.isNaN(eventTime)) return;
+
+      const reminderTime =
+        eventTime - Number(item.remind || 15) * 60000;
+
+      const key = item.id + ':' + item.event_at;
+
+      if (now >= reminderTime &&
+          now <= eventTime + 60000 &&
+          !notified.has(key)) {
+        new Notification('موعد قريب: ' + item.title, {
+          body: item.category + ' - ' +
+            new Date(item.event_at).toLocaleString('ar-EG')
+        });
+
+        notified.add(key);
+        saveNotified();
+      }
+    });
+  } catch (error) {
+    console.error('خطأ في التذكيرات:', error);
+  }
+}
+
+updateButton();
+checkReminders();
+setInterval(checkReminders, 30000);
+</script>
